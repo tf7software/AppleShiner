@@ -3,6 +3,7 @@ import subprocess
 import tkinter as tk
 from tkinter import ttk
 import platform
+import sys
 
 # Assembly code with progress reporting
 ASSEMBLY_CODE = """
@@ -119,10 +120,11 @@ random:
     ret
 """
 
+# Define the file names and paths
 ASSEMBLY_FILE = 'file_scrambler.asm'
 OBJECT_FILE = 'file_scrambler.o'
 EXECUTABLE_FILE = 'file_scrambler'
-PROGRESS_FILE = '/tmp/progress.txt'
+PROGRESS_FILE = '/tmp/progress.txt' if platform.system() != 'Windows' else 'C:\\temp\\progress.txt'
 
 def detect_os():
     system = platform.system()
@@ -143,6 +145,7 @@ def install_packages():
         install_windows_packages()
     elif os_type == 'Linux':
         install_linux_packages()
+    install_python_packages()
 
 def install_brew_packages():
     try:
@@ -160,14 +163,39 @@ def install_brew_packages():
     subprocess.run(['brew', 'install', 'clang'], check=True)
 
 def install_windows_packages():
-    print("Installing NASM and Clang for Windows...")
-    subprocess.run(['winget', 'install', 'nasm'], check=True)
-    subprocess.run(['winget', 'install', 'LLVM.Clang'], check=True)
+    try:
+        # Check if winget is installed
+        subprocess.run(['winget', '--version'], check=True)
+    except subprocess.CalledProcessError:
+        print("winget not found. Please install winget manually.")
+        sys.exit(1)
+
+    # Install NASM
+    try:
+        subprocess.run(['winget', 'install', 'nasm'], check=True)
+    except subprocess.CalledProcessError:
+        print("Failed to install NASM. Please check if the package name is correct or install it manually.")
+        sys.exit(1)
+
+    # Install Clang (searching for the correct package name)
+    try:
+        subprocess.run(['winget', 'install', '--id', 'LLVM.LLVM'], check=True)
+    except subprocess.CalledProcessError:
+        print("Failed to install Clang. Please check if the package name is correct or install it manually.")
+        sys.exit(1)
+
 
 def install_linux_packages():
     print("Installing NASM and Clang for Linux...")
     subprocess.run(['sudo', 'apt-get', 'update'], check=True)
     subprocess.run(['sudo', 'apt-get', 'install', '-y', 'nasm', 'clang'], check=True)
+
+def install_python_packages():
+    try:
+        import tkinter
+    except ImportError:
+        print("Installing tkinter...")
+        subprocess.run([sys.executable, '-m', 'pip', 'install', 'tk'], check=True)
 
 def create_assembly_file():
     with open(ASSEMBLY_FILE, 'w') as file:
@@ -177,10 +205,10 @@ def compile_assembly():
     os_type = detect_os()
     if os_type == 'macOS':
         subprocess.run(['nasm', '-f', 'macho64', ASSEMBLY_FILE, '-o', OBJECT_FILE], check=True)
-        subprocess.run(['clang', '-framework', 'Cocoa', OBJECT_FILE, '-o', EXECUTABLE_FILE], check=True)
+        subprocess.run(['clang', '-o', EXECUTABLE_FILE, OBJECT_FILE], check=True)
     elif os_type == 'Windows':
         subprocess.run(['nasm', '-f', 'win64', ASSEMBLY_FILE, '-o', OBJECT_FILE], check=True)
-        subprocess.run(['clang', OBJECT_FILE, '-o', EXECUTABLE_FILE], check=True)
+        subprocess.run(['clang', OBJECT_FILE, '-o', EXECUTABLE_FILE + '.exe'], check=True)
     elif os_type == 'Linux':
         subprocess.run(['nasm', '-f', 'elf64', ASSEMBLY_FILE, '-o', OBJECT_FILE], check=True)
         subprocess.run(['clang', OBJECT_FILE, '-o', EXECUTABLE_FILE], check=True)
@@ -188,13 +216,11 @@ def compile_assembly():
 def run_executable():
     os_type = detect_os()
     if os_type == 'macOS':
-        # Use AppleScript to prompt for admin permission and run the executable
-        script = f"""
-        do shell script "/bin/bash -c 'cd {os.path.abspath(os.path.dirname(EXECUTABLE_FILE))} && ./{EXECUTABLE_FILE}'" with administrator privileges
-        """
-        subprocess.run(['osascript', '-e', script], check=True)
-    elif os_type == 'Windows' or os_type == 'Linux':
-        subprocess.run([f"./{EXECUTABLE_FILE}"], check=True)
+        subprocess.run(['./' + EXECUTABLE_FILE], check=True)
+    elif os_type == 'Windows':
+        subprocess.run([EXECUTABLE_FILE + '.exe'], check=True)
+    elif os_type == 'Linux':
+        subprocess.run(['./' + EXECUTABLE_FILE], check=True)
 
 def create_progress_window():
     root = tk.Tk()
